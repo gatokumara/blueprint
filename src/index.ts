@@ -1,7 +1,10 @@
 export interface Blueprint<Props = unknown, Result = unknown, Self = unknown> {
     (props: Props): Result
-    addon<B>(addon: Addon<B>): B & Self & Blueprint<Self & B, Props, Result>
-}  
+
+    addon<B>(addon: Addon<B>): B & Self & Blueprint<Props, Result, Self & B>
+
+    implement(handle: (props: Props) => Result): Self & Blueprint<Props, Result, Self>
+}
 
 export interface Addon<AddonCore> {
     core: AddonCore
@@ -19,7 +22,10 @@ export default function blueprint<Props, Result>(init: (props: Props) => Result 
     return Object.assign(init, {
         addon(addon) {
             return { ...this, ...addon }
-        }
+        },
+        implement(handle) {
+            return blueprint(handle).addon(this)
+        },
     }) as Blueprint<Props, Result>
 }
 
@@ -35,7 +41,7 @@ namespace Example {
 
     const test = {
         early: blueprint(sum),
-        late: blueprint<AB, number>()
+        late: blueprint<AB, number>().implement(sum),
     }
 
     const isNumIfNoRedUnderline = test.early({a: 1, b: 1}).toFixed() && test.late({a: 1, b: 1}).toFixed()
