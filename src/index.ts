@@ -1,9 +1,14 @@
 export interface Blueprint<Props = unknown, Result = unknown, Self = unknown> {
-    (props: Props): Result
 
     addon<B>(addon: Addon<B>): B & Self & Blueprint<Props, Result, Self & B>
 
-    implement(handle: (props: Props) => Result): Self & Blueprint<Props, Result, Self>
+    reinit(handle: (props: Props) => Result): Self & Blueprint<Props, Result, Self>
+
+    call(props: Props) : Result
+
+    mod<NewProps = Props, NewResult = Result>(
+        mod: (handle: (props: Props) => Result) => (props: NewProps) => NewResult
+    ) : Self & Blueprint<Props, Result, Self>
 }
 
 export interface Addon<AddonCore> {
@@ -19,14 +24,25 @@ export function notImplemented(returns: boolean = false) {
 
 export default function blueprint<Props, Result>(init: (props: Props) => Result = notImplemented as any) {
 
-    return Object.assign(init, {
-        addon(addon) {
-            return { ...this, ...addon }
+    let handle = init as any
+
+    const core : Blueprint<Props, Result> = {
+        call(props) {
+            return handle(props) as Result
         },
-        implement(handle) {
-            return blueprint(handle).addon(this)
+        addon<A extends Addon<unknown>>(addon: A) {
+            return { ...this, ...addon.core as any }
         },
-    }) as Blueprint<Props, Result>
+        reinit(handle: (props: Props) => Result) {
+            return blueprint(handle)
+        },
+        mod(mod) {
+            handle = mod(handle)
+            return this
+        }
+    }
+
+    return core
 }
 
 namespace Example {
@@ -41,9 +57,9 @@ namespace Example {
 
     const test = {
         early: blueprint(sum),
-        late: blueprint<AB, number>().implement(sum),
+        late: blueprint<AB, number>().reinit(sum),
     }
 
-    const isNumIfNoRedUnderline = test.early({a: 1, b: 1}).toFixed() && test.late({a: 1, b: 1}).toFixed()
+    const isNumIfNoRedUnderline = test.early.call({a: 1, b: 1}).toFixed() && test.late.call({a: 1, b: 1}).toFixed()
 }
 
